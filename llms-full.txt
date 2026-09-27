@@ -390,3 +390,251 @@ nginx's error log is `/var/log/nginx/error.log`; media requests are also in the 
   ```bash
   sudo mysqldump --single-transaction wuxia | gzip > ~/wuxia-$(date +%F).sql.gz
   ```
+
+---
+
+## File: server/nginx-wuxia-media.conf
+
+```
+# Wuxia video playback for nginx (any nginx server, no Docker needed).
+#
+# Why: the plugin never lets PHP stream video. WordPress checks each signed
+# /media/ link and names the real file; nginx fetches it from your storage and
+# streams it, keeping the storage address and credentials hidden. Without these
+# rules every episode answers "501 Media is served through nginx".
+#
+# Apache, LiteSpeed and most shared hosting cannot run this. There the pages
+# work but episodes do not play; use a server (or VPS) with nginx.
+#
+# How: put PART 1 inside `http { }` (for example /etc/nginx/conf.d/wuxia.conf)
+# and PART 2 inside your site's `server { }`, next to its other locations.
+# Change the two lines marked CHANGE, then: sudo nginx -t && sudo systemctl reload nginx
+#
+# Check: open an episode; in the browser's Network tab its .m3u8 and .ts files
+# answer 200 (403 "expired" after six hours is normal: reload the page).
+
+# ---------------------------------------------------------------- PART 1: http { }
+
+# A viewer fetches a segment every few seconds; seeking fetches a few at once.
+limit_req_zone $binary_remote_addr zone=wuxia_media_rate:10m rate=30r/s;
+
+# Each storage file once on this server's disk, shared by every viewer. Size it
+# to your disk (20g is about 50 hours of 720p); unused files go after 7 days.
+# The folder must exist and belong to nginx's user:
+#   sudo mkdir -p /var/cache/nginx/wuxia && sudo chown -R www-data /var/cache/nginx/wuxia
+proxy_cache_path /var/cache/nginx/wuxia levels=1:2 keys_zone=wuxia_media:50m
+                 max_size=20g inactive=7d use_temp_path=off;
+
+# -------------------------------------------------------------- PART 2: server { }
+
+# WordPress answers every /media/ request (the flag below tells the plugin
+# nginx is in front); for video files it hands the fetch back to nginx.
+location ^~ /media/ {
+	limit_req zone=wuxia_media_rate burst=80 nodelay;
+	limit_req_status 429;
+	include fastcgi_params;
+	fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+	fastcgi_param SCRIPT_NAME /index.php;
+	fastcgi_param WUXIA_MEDIA_ACCEL 1;
+	# CHANGE: the same fastcgi_pass as your site's `location ~ \.php$` block,
+	# e.g. unix:/run/php/php8.3-fpm.sock or 127.0.0.1:9000
+	fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+}
+
+# Reachable only from the location above (X-Accel-Redirect). The storage
+# address and credentials come from WordPress in response headers and never
+# reach the viewer; the viewer's own headers are not sent to storage.
+location = /_wuxia_upstream {
+	internal;
+	set $wuxia_from_php $upstream_http_x_wuxia_key;
+	if ($wuxia_from_php) {
+		set $wuxia_url   $upstream_http_x_wuxia_url;
+		set $wuxia_auth  $upstream_http_x_wuxia_auth;
+		set $wuxia_cache $upstream_http_x_wuxia_cache;
+		set $wuxia_key   $upstream_http_x_wuxia_key;
+	}
+
+	proxy_cache wuxia_media;
+	proxy_cache_key $wuxia_key;
+	proxy_cache_valid 200 7d;
+	proxy_cache_valid 404 1m;
+	proxy_cache_lock on;
+	proxy_cache_lock_timeout 15s;
+	proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+	proxy_cache_background_update on;
+	proxy_ignore_headers Cache-Control Expires Set-Cookie Vary X-Accel-Expires;
+
+	# nginx looks up storage hosts itself; any public DNS resolver works.
+	resolver 1.1.1.1 8.8.8.8 valid=300s ipv6=off;
+	resolver_timeout 5s;
+	proxy_pass $wuxia_url;
+	proxy_http_version 1.1;
+	proxy_ssl_server_name on;
+	proxy_ssl_verify on;
+	# CHANGE on RHEL/Alma/Rocky: /etc/pki/tls/certs/ca-bundle.crt
+	proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+	proxy_ssl_verify_depth 3;
+	proxy_connect_timeout 5s;
+	proxy_read_timeout 30s;
+
+	proxy_pass_request_headers off;
+	proxy_set_header Authorization $wuxia_auth;
+	proxy_set_header User-Agent "wuxia-media";
+
+	# Nothing about the storage behind reaches the viewer.
+	proxy_hide_header Set-Cookie;
+	proxy_hide_header Cache-Control;
+	proxy_hide_header Expires;
+	proxy_hide_header Content-Disposition;
+	proxy_hide_header Access-Control-Allow-Origin;
+	proxy_hide_header Via;
+	proxy_hide_header X-Cache;
+	proxy_hide_header X-Served-By;
+	proxy_hide_header X-Timer;
+	proxy_hide_header X-Jsd-Version;
+	proxy_hide_header X-Jsd-Version-Type;
+	proxy_hide_header Fastly-Restarts;
+	proxy_hide_header X-GitHub-Request-Id;
+	proxy_hide_header X-Amz-Request-Id;
+	proxy_hide_header X-Amz-Id-2;
+	proxy_hide_header Cf-Ray;
+	proxy_hide_header Alt-Svc;
+	proxy_hide_header Strict-Transport-Security;
+	proxy_hide_header Report-To;
+	proxy_hide_header Nel;
+	proxy_hide_header Timing-Allow-Origin;
+	proxy_hide_header X-Content-Type-Options;
+	proxy_hide_header Cross-Origin-Resource-Policy;
+	proxy_hide_header Access-Control-Expose-Headers;
+
+	add_header Cache-Control $wuxia_cache always;
+	add_header X-Content-Type-Options "nosniff" always;
+	add_header Cross-Origin-Resource-Policy "same-origin" always;
+	add_header Content-Disposition "inline" always;
+	add_header X-Robots-Tag "noindex, nofollow" always;
+	add_header X-Wuxia-Origin-Cache $upstream_cache_status always;
+}
+```
+
+---
+
+## File: server/nginx-proxy-manager/docker-compose.yml
+
+```
+# Wuxia for WordPress behind Nginx Proxy Manager: Path D of the deployment guide,
+# https://wuxia-kh.github.io/wuxia-press-published-/deploy.html#path-d
+#
+# Replace A_STRONG_DB_PASSWORD and A_STRONG_ROOT_PASSWORD (the guide does it
+# with one command), then: docker compose up -d
+
+services:
+  # Nginx Proxy Manager: the only thing the internet reaches. HTTPS
+  # certificates, and the admin panel on port 81.
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      # The admin panel: only on this server. Reach it through an SSH tunnel
+      # (see the guide); never open it to the internet.
+      - "127.0.0.1:81:81"
+    volumes:
+      - ./npm/data:/data
+      - ./npm/letsencrypt:/etc/letsencrypt
+
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: wuxia
+      MARIADB_USER: wuxia
+      MARIADB_PASSWORD: A_STRONG_DB_PASSWORD
+      MARIADB_ROOT_PASSWORD: A_STRONG_ROOT_PASSWORD
+    volumes:
+      - db:/var/lib/mysql
+
+  # WordPress as PHP-FPM: no web server of its own.
+  wordpress:
+    image: wordpress:php8.3-fpm
+    restart: unless-stopped
+    depends_on: [db]
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: wuxia
+      WORDPRESS_DB_USER: wuxia
+      WORDPRESS_DB_PASSWORD: A_STRONG_DB_PASSWORD
+      # Nginx Proxy Manager ends HTTPS; tell WordPress the visitor used it.
+      WORDPRESS_CONFIG_EXTRA: |
+        if ( ( $$_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '' ) === 'https' ) { $$_SERVER['HTTPS'] = 'on'; }
+    volumes:
+      - wp:/var/www/html
+
+  # nginx with the Wuxia media rules, between the proxy and WordPress.
+  web:
+    image: nginx:stable
+    restart: unless-stopped
+    depends_on: [wordpress]
+    volumes:
+      - wp:/var/www/html:ro
+      - ./nginx/site.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/wuxia-media-http.conf:/etc/nginx/conf.d/wuxia-media-http.conf:ro
+      - ./nginx/cloudflare.conf:/etc/nginx/conf.d/cloudflare.conf:ro
+      - ./nginx/wuxia-media-server.conf:/etc/nginx/snippets/wuxia-media-server.conf:ro
+      - media_cache:/var/cache/nginx/wuxia
+
+volumes:
+  db:
+  wp:
+  media_cache:
+```
+
+---
+
+## File: server/nginx-proxy-manager/nginx/site.conf
+
+```
+# The nginx between Nginx Proxy Manager and WordPress: it serves the site and
+# carries the Wuxia media rules (snippets/wuxia-media-server.conf).
+# Path D of the Wuxia for WordPress deployment guide.
+
+# Behind Nginx Proxy Manager: the visitor's address arrives in X-Forwarded-For.
+# Trust it only from Docker's private network (the proxy).
+set_real_ip_from 172.16.0.0/12;
+set_real_ip_from 10.0.0.0/8;
+set_real_ip_from 192.168.0.0/16;
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+server {
+	listen 80;
+	server_name _;
+	root /var/www/html;
+	index index.php;
+	client_max_body_size 64m;
+	server_tokens off;
+
+	# Video (Wuxia). Its ^~ locations take priority over the rules below.
+	include snippets/wuxia-media-server.conf;
+
+	location ~ /\. { deny all; }
+	location = /xmlrpc.php { deny all; }
+	location ~* ^/wp-content/uploads/.*\.php$ { deny all; }
+
+	location / {
+		try_files $uri $uri/ /index.php?$args;
+	}
+
+	location ~ \.php$ {
+		try_files $uri =404;
+		include fastcgi_params;
+		fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+		fastcgi_pass wordpress:9000;
+	}
+
+	location ~* \.(css|js|webp|avif|jpg|jpeg|png|svg|ttf|woff2)$ {
+		expires 30d;
+		access_log off;
+	}
+}
+```

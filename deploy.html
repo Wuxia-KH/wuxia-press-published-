@@ -23,8 +23,9 @@
       <a class="brand" href="./"><img src="assets/img/mark.svg" alt="" width="34" height="26"><span>WUXIA <small>for WordPress</small></span></a>
       <nav class="menu" aria-label="Site">
         <a class="wide" href="./#features">Features</a>
-        <a class="wide" href="./#install">Install</a>
-        <a href="deploy.html" aria-current="page">Deploy</a>
+        <a href="./#install">Install</a>
+        <a aria-current="page" href="deploy.html">Deploy</a>
+        <a class="wide" href="./#faq">FAQ</a>
         <a href="https://github.com/Wuxia-KH/wuxia-press-published-/releases">Releases</a>
       </nav>
     </div>
@@ -35,7 +36,7 @@
       <div class="wrap">
         <p class="eyebrow">Deployment guide</p>
         <h1>Deploy Wuxia so every episode plays.</h1>
-        <p class="lede">Follow the guide from top to bottom. Copy each command as it is; change only the values in <code>ALL_CAPS</code>, such as <code>YOUR_DOMAIN</code>.</p>
+        <p class="lede">Follow the guide from top to bottom. Copy each command as it is; change only the values in <code>ALL_CAPS</code>, such as <code>YOUR_DOMAIN</code>. Or let an <a href="#ai">AI assistant</a> walk you through it.</p>
         <ul class="facts">
           <li>About 30 minutes</li>
           <li>Ubuntu 24.04</li>
@@ -53,6 +54,8 @@
 <li><a href="#path-a">Path A · new Ubuntu server</a></li>
 <li><a href="#path-b">Path B · hosting panel</a></li>
 <li><a href="#path-c">Path C · existing nginx</a></li>
+<li><a href="#path-d">Path D · Nginx Proxy Manager</a></li>
+<li><a href="#ai">Deploy with an AI assistant</a></li>
 <li><a href="#cloudflare">Cloudflare</a></li>
 <li><a href="#install">Theme and plugin</a></li>
 <li><a href="#check">Check video plays</a></li>
@@ -83,6 +86,7 @@
               <tr><th scope="row">A VPS or dedicated server you can <code>ssh</code> into (Ubuntu 24.04)</th><td><span class="pill ok">Yes</span></td><td><span class="pill ok">Yes</span></td><td><a href="#path-a">Path A</a></td></tr>
               <tr><th scope="row">A panel that runs nginx and accepts custom nginx config (CloudPanel, RunCloud, SpinupWP, GridPane, Plesk with nginx)</th><td><span class="pill ok">Yes</span></td><td><span class="pill ok">Yes</span></td><td><a href="#path-b">Path B</a></td></tr>
               <tr><th scope="row">A server where you already run WordPress on nginx</th><td><span class="pill ok">Yes</span></td><td><span class="pill ok">Yes</span></td><td><a href="#path-c">Path C</a></td></tr>
+              <tr><th scope="row">A server with Docker, where you want <a href="https://nginxproxymanager.com">Nginx Proxy Manager</a> to handle domains and HTTPS certificates</th><td><span class="pill ok">Yes</span></td><td><span class="pill ok">Yes</span></td><td><a href="#path-d">Path D</a></td></tr>
               <tr><th scope="row">Shared hosting, cPanel, Apache or LiteSpeed</th><td><span class="pill ok">Yes</span></td><td><span class="pill no">No</span></td><td>Move to one of the rows above</td></tr>
             </tbody>
           </table></div>
@@ -230,8 +234,100 @@ sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code></pre></div>
           </ol>
         </section>
 
+        <section class="doc-sec" aria-labelledby="path-d">
+          <h2 id="path-d"><span class="num">5</span>Path D · Docker with Nginx Proxy Manager</h2>
+          <p><a href="https://nginxproxymanager.com">Nginx Proxy Manager</a> gives you a web panel for domains and free HTTPS certificates. It only forwards traffic, so the Wuxia media rules live in a small nginx container behind it. Everything runs in Docker from one folder.</p>
+          <ol class="flow" aria-label="The path of a request on Path D">
+            <li><b>Cloudflare</b><span>optional</span></li>
+            <li><b>Nginx Proxy Manager</b><span>domains and HTTPS</span></li>
+            <li><b>nginx</b><span>the two media rules</span></li>
+            <li><b>WordPress</b><span>PHP-FPM</span></li>
+            <li class="accent"><b>MariaDB</b><span>your catalogue</span></li>
+          </ol>
+          <div class="callout ok"><b>Tested end to end</b><p>An episode’s playlist and video segments played through Nginx Proxy Manager, the second time from nginx’s cache.</p></div>
+
+          <h3 id="d1"><span class="step">D1</span>Docker and the firewall</h3>
+          <p>On a fresh Ubuntu 24.04 (Debian works too):</p>
+          <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" class="copy" aria-label="Copy Terminal">Copy</button></div><pre><code class="lang-bash">curl -fsSL https://get.docker.com | sudo sh
+sudo ufw allow OpenSSH
+sudo ufw allow 80,443/tcp
+sudo ufw --force enable</code></pre></div>
+
+          <h3 id="d2"><span class="step">D2</span>The files</h3>
+          <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" class="copy" aria-label="Copy Terminal">Copy</button></div><pre><code class="lang-bash">mkdir -p ~/wuxia/nginx &amp;&amp; cd ~/wuxia
+RAW=https://raw.githubusercontent.com/Wuxia-KH/wuxia-press-published-/main/server
+curl -sLo docker-compose.yml &quot;$RAW/nginx-proxy-manager/docker-compose.yml&quot;
+curl -sLo nginx/site.conf &quot;$RAW/nginx-proxy-manager/nginx/site.conf&quot;
+curl -sLo nginx/nginx-wuxia-media.conf &quot;$RAW/nginx-wuxia-media.conf&quot;
+sed -n &#x27;/PART 1: http/,/PART 2: server/p&#x27; nginx/nginx-wuxia-media.conf &gt; nginx/wuxia-media-http.conf
+sed -n &#x27;/PART 2: server/,$p&#x27; nginx/nginx-wuxia-media.conf | sed &#x27;s#unix:/run/php/php8.3-fpm.sock#wordpress:9000#&#x27; &gt; nginx/wuxia-media-server.conf
+for ip in $(curl -s https://www.cloudflare.com/ips-v4) $(curl -s https://www.cloudflare.com/ips-v6); do
+  echo &quot;set_real_ip_from $ip;&quot;; done &gt; nginx/cloudflare.conf
+ls nginx</code></pre></div>
+          <p class="muted"><code>ls</code> lists <code>cloudflare.conf</code>, <code>nginx-wuxia-media.conf</code>, <code>site.conf</code>, <code>wuxia-media-http.conf</code> and <code>wuxia-media-server.conf</code>. The Cloudflare file lets nginx see visitors’ real addresses behind Cloudflare; without Cloudflare it does nothing. The files: <a href="https://github.com/Wuxia-KH/wuxia-press-published-/blob/main/server/nginx-proxy-manager/docker-compose.yml"><code>docker-compose.yml</code></a>, <a href="https://github.com/Wuxia-KH/wuxia-press-published-/blob/main/server/nginx-proxy-manager/nginx/site.conf"><code>site.conf</code></a>.</p>
+
+          <h3 id="d3"><span class="step">D3</span>Passwords, then start</h3>
+          <p>This puts random database passwords into <code>docker-compose.yml</code>; you never need to type them.</p>
+          <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" class="copy" aria-label="Copy Terminal">Copy</button></div><pre><code class="lang-bash">sed -i &quot;s/A_STRONG_DB_PASSWORD/$(openssl rand -hex 16)/g; s/A_STRONG_ROOT_PASSWORD/$(openssl rand -hex 16)/&quot; docker-compose.yml
+sudo docker compose up -d
+sudo docker compose ps</code></pre></div>
+          <div class="callout ok"><b>Expected</b><p>All four services (<code>npm</code>, <code>db</code>, <code>wordpress</code>, <code>web</code>) show <code>Up</code>.</p></div>
+
+          <h3 id="d4"><span class="step">D4</span>Open the Nginx Proxy Manager panel</h3>
+          <p>The panel (port 81) listens only on the server itself, so it is never exposed to the internet. From <strong>your own computer</strong>, open a tunnel:</p>
+          <div class="code"><div class="code-bar"><span>Your computer</span><button type="button" class="copy" aria-label="Copy Your computer">Copy</button></div><pre><code class="lang-bash">ssh -L 8181:127.0.0.1:81 YOUR_USER@YOUR_SERVER_IP</code></pre></div>
+          <p>Keep that window open and browse to <code>http://localhost:8181</code>. On the first visit, create the admin account (name, email, password). Older versions show a login instead: <code>admin@example.com</code> / <code>changeme</code>, then ask you to change both.</p>
+
+          <h3 id="d5"><span class="step">D5</span>The proxy host</h3>
+          <p>Point <code>YOUR_DOMAIN</code> and <code>www</code> at the server’s IP first (see <a href="#cloudflare">Cloudflare</a>). Then <span class="path">Hosts → Proxy Hosts → Add Proxy Host</span>, <b>Details</b> tab:</p>
+          <div class="table-wrap"><table class="grid-table">
+            <thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Domain Names</th><td><code>YOUR_DOMAIN</code> and <code>www.YOUR_DOMAIN</code></td></tr>
+              <tr><th scope="row">Scheme</th><td><code>http</code></td></tr>
+              <tr><th scope="row">Forward Hostname / IP</th><td><code>web</code></td></tr>
+              <tr><th scope="row">Forward Port</th><td><code>80</code></td></tr>
+              <tr><th scope="row">Cache Assets</th><td>off</td></tr>
+              <tr><th scope="row">Block Common Exploits</th><td>off (not needed: WordPress and nginx check every media link themselves)</td></tr>
+              <tr><th scope="row">Websockets Support</th><td>off</td></tr>
+            </tbody>
+          </table></div>
+          <p><b>SSL</b> tab: <b>Request a new SSL Certificate</b>, turn on <b>Force SSL</b> and <b>HTTP/2 Support</b>, agree to the terms, <b>Save</b>.</p>
+          <ul class="plain">
+            <li>With Cloudflare’s orange cloud on, tick <b>Use a DNS Challenge</b>, choose <b>Cloudflare</b>, and paste an API token that can edit the zone’s DNS (Cloudflare → My Profile → API Tokens → <em>Edit zone DNS</em> template).</li>
+            <li>Or use a Cloudflare Origin Certificate: <span class="path">SSL Certificates → Add SSL Certificate → Custom</span>, upload the certificate and key from Cloudflare’s <span class="path">SSL/TLS → Origin Server</span>, then pick it on the proxy host’s SSL tab.</li>
+          </ul>
+
+          <h3 id="d6"><span class="step">D6</span>WordPress</h3>
+          <p>Open <code>https://YOUR_DOMAIN</code>: the installer asks only for a site title and your admin account (the database is already connected). Then continue with <a href="#install">Install the theme and plugin</a>.</p>
+          <p class="muted">On this path, <code>wp-config.php</code> settings go in <code>docker-compose.yml</code>, under the <code>wordpress</code> service’s <code>WORDPRESS_CONFIG_EXTRA</code>, one <code>define</code> per line after the one already there; then <code>sudo docker compose up -d</code>.</p>
+        </section>
+
+        <section class="doc-sec" aria-labelledby="ai">
+          <h2 id="ai"><span class="num">6</span>Deploy with an AI assistant</h2>
+          <p>AI assistants such as ChatGPT, Claude, Gemini and Copilot can read this guide and walk you through it, one step at a time. It is published for them as plain text at <a href="llms-full.txt"><code>llms-full.txt</code></a>, with an index at <a href="llms.txt"><code>llms.txt</code></a>.</p>
+          <p>Copy this into the assistant and fill in the brackets:</p>
+          <div class="code"><div class="code-bar"><span>Prompt</span><button type="button" class="copy" aria-label="Copy Prompt">Copy</button></div><pre><code class="lang-text">Help me deploy &quot;Wuxia for WordPress&quot; so that its pages load and its episodes play.
+First read the deployment guide and follow it exactly:
+https://wuxia-kh.github.io/wuxia-press-published-/llms-full.txt
+
+My setup:
+- Hosting: [a new Ubuntu 24.04 VPS | a hosting panel called ... | a server already running nginx | Docker with Nginx Proxy Manager]
+- Domain: [example.com]
+- Cloudflare in front: [yes | no]
+
+Give me one step at a time with the exact command, and tell me what I should see
+before I go on. If something fails, use the guide&#x27;s troubleshooting table.
+Never ask me to paste passwords, API keys or tokens into this chat.</code></pre></div>
+          <ul class="plain">
+            <li><b>Assistants that can run commands</b> on your server (Claude Code, Codex CLI, Gemini CLI and similar) can follow the guide directly. Read each command before you approve it.</li>
+            <li><b>Keep secrets out of the chat.</b> The guide generates passwords on the server; an assistant never needs to see them.</li>
+            <li><b>The guide is the reference.</b> If an assistant’s advice disagrees with it, trust the guide, especially the nginx rules.</li>
+          </ul>
+        </section>
+
         <section class="doc-sec" aria-labelledby="cloudflare">
-          <h2 id="cloudflare"><span class="num">5</span>Cloudflare</h2>
+          <h2 id="cloudflare"><span class="num">7</span>Cloudflare</h2>
           <ol class="steps">
             <li><b>DNS</b><p><code>A</code> records for <code>@</code> and <code>www</code> pointing at the server, <b>Proxied</b> (orange cloud).</p></li>
             <li><b>SSL</b><p><span class="path">SSL/TLS → Overview</span> → <b>Full (strict)</b>. Never <em>Flexible</em>: it loops wp-admin redirects.</p></li>
@@ -243,7 +339,7 @@ sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code></pre></div>
         </section>
 
         <section class="doc-sec" aria-labelledby="install">
-          <h2 id="install"><span class="num">6</span>Install the theme and plugin</h2>
+          <h2 id="install"><span class="num">8</span>Install the theme and plugin</h2>
           <div class="downloads">
             <a class="btn btn-red" href="https://github.com/Wuxia-KH/wuxia-press-published-/releases/latest/download/wuxia-core.zip">Plugin <small>wuxia-core.zip</small></a>
             <a class="btn btn-ghost" href="https://github.com/Wuxia-KH/wuxia-press-published-/releases/latest/download/wuxia-theme.zip">Theme <small>wuxia-theme.zip</small></a>
@@ -266,7 +362,7 @@ define( &#x27;WUXIA_MAIL_FROM&#x27;, &#x27;no-reply@YOUR_DOMAIN&#x27; );</code><
         </section>
 
         <section class="doc-sec" aria-labelledby="check">
-          <h2 id="check"><span class="num">7</span>Check that video plays</h2>
+          <h2 id="check"><span class="num">9</span>Check that video plays</h2>
           <ol class="steps">
             <li><b>Play</b><p>Open any episode and press play.</p></li>
             <li><b>Network tab</b><p>Open the browser’s developer tools → <b>Network</b>, filter <code>media</code>.</p></li>
@@ -282,7 +378,7 @@ define( &#x27;WUXIA_MAIL_FROM&#x27;, &#x27;no-reply@YOUR_DOMAIN&#x27; );</code><
         </section>
 
         <section class="doc-sec" aria-labelledby="troubleshooting">
-          <h2 id="troubleshooting"><span class="num">8</span>Troubleshooting</h2>
+          <h2 id="troubleshooting"><span class="num">10</span>Troubleshooting</h2>
           <div class="table-wrap"><table class="grid-table trouble">
             <thead><tr><th scope="col">You see</th><th scope="col">Meaning</th><th scope="col">Fix</th></tr></thead>
             <tbody>
@@ -298,17 +394,21 @@ define( &#x27;WUXIA_MAIL_FROM&#x27;, &#x27;no-reply@YOUR_DOMAIN&#x27; );</code><
 <tr><th scope="row"><code>429</code></th><td>Too many requests from one IP.</td><td>Behind Cloudflare, do <a href="#a5">step A5</a> so viewers aren’t counted as one.</td></tr>
 <tr><th scope="row">wp-admin loops “too many redirects”</th><td>Cloudflare SSL is <em>Flexible</em>.</td><td>Set <b>Full (strict)</b> with the origin certificate.</td></tr>
 <tr><th scope="row">Episode pages or <code>/shorts/</code> answer 404</th><td>Permalinks are “Plain”.</td><td><b>Settings → Permalinks → Post name → Save</b>.</td></tr>
+<tr><th scope="row">Path D: Nginx Proxy Manager shows <em>502 Bad Gateway</em></th><td>It can’t reach the <code>web</code> container.</td><td><code>sudo docker compose ps</code>: all four services must be up. The proxy host forwards to <code>web</code>, port <code>80</code>, scheme <code>http</code>.</td></tr>
+<tr><th scope="row">Path D: the certificate request fails</th><td>Let’s Encrypt couldn’t check the domain.</td><td>The domain must already point at the server. Behind Cloudflare’s orange cloud, use <b>Use a DNS Challenge</b> with a Cloudflare API token.</td></tr>
+<tr><th scope="row">Path D: <code>501</code> although everything runs</th><td><code>site.conf</code> or the split media files are missing.</td><td>In <code>~/wuxia</code>, <code>ls nginx</code> must list the five files from step D2; then <code>sudo docker compose restart web</code>.</td></tr>
             </tbody>
           </table></div>
-          <p class="muted">nginx’s error log is <code>/var/log/nginx/error.log</code>; media requests are also in the access log.</p>
+          <p class="muted">nginx’s error log is <code>/var/log/nginx/error.log</code>; media requests are also in the access log. On Path D: <code>sudo docker compose logs web</code> (and <code>logs npm</code> for the proxy).</p>
         </section>
 
         <section class="doc-sec" aria-labelledby="updates">
-          <h2 id="updates"><span class="num">9</span>Updates and backups</h2>
+          <h2 id="updates"><span class="num">11</span>Updates and backups</h2>
           <ul class="plain">
             <li><b>Update:</b> download the new zips and upload them the same way; WordPress asks to replace the installed version. Every release lists <code>SHA256SUMS</code>. Check each release’s notes for a new <code>nginx-wuxia-media.conf</code>.</li>
-            <li><b>Replaced a video at the same address?</b> Empty nginx’s cache, or it keeps the old copy for up to 7 days: <code>sudo rm -rf /var/cache/nginx/wuxia/*</code></li>
-            <li><b>Back up</b> the database and <code>wp-config.php</code> (it holds <code>WUXIA_MEDIA_KEY</code>) every day, and keep a copy off the server:</li>
+            <li><b>Replaced a video at the same address?</b> Empty nginx’s cache, or it keeps the old copy for up to 7 days: <code>sudo rm -rf /var/cache/nginx/wuxia/*</code> (Path D: <code>sudo docker compose exec web sh -c 'rm -rf /var/cache/nginx/wuxia/*'</code>)</li>
+            <li><b>Path D, updating the containers:</b> <code>cd ~/wuxia &amp;&amp; sudo docker compose pull &amp;&amp; sudo docker compose up -d</code></li>
+            <li><b>Back up</b> the database and <code>wp-config.php</code> (it holds <code>WUXIA_MEDIA_KEY</code>; on Path D, <code>docker-compose.yml</code>) every day, and keep a copy off the server. Path D: <code>sudo docker compose exec -T db sh -c 'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" wuxia' | gzip &gt; ~/wuxia-$(date +%F).sql.gz</code>. Paths A to C:</li>
           </ul>
           <div class="code"><div class="code-bar"><span>Terminal</span><button type="button" class="copy" aria-label="Copy Terminal">Copy</button></div><pre><code class="lang-bash">sudo mysqldump --single-transaction wuxia | gzip &gt; ~/wuxia-$(date +%F).sql.gz</code></pre></div>
         </section>
@@ -320,9 +420,11 @@ define( &#x27;WUXIA_MAIL_FROM&#x27;, &#x27;no-reply@YOUR_DOMAIN&#x27; );</code><
     <div class="wrap">
       <span>Wuxia for WordPress · GPL-2.0-or-later</span>
       <nav aria-label="Footer">
-        <a href="./">Home</a>
-        <a href="https://github.com/Wuxia-KH/wuxia-press-published-/blob/main/DEPLOY.md">This guide on GitHub</a>
-        <a href="https://github.com/Wuxia-KH/wuxia-press-published-/releases">Releases</a>
+        <a href="deploy.html">Deployment guide</a>
+        <a href="https://github.com/Wuxia-KH/wuxia-press-published-/releases">All releases</a>
+        <a href="https://github.com/Wuxia-KH/wuxia-press-published-/releases/latest">Changelog &amp; checksums</a>
+        <a href="https://github.com/Wuxia-KH/wuxia-press-published-">GitHub</a>
+        <a href="https://github.com/Wuxia-KH/wuxia-press-published-/issues/new?template=use-wuxia.yml">Contact us</a>
       </nav>
     </div>
   </footer>

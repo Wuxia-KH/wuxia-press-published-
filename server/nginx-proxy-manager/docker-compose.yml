@@ -1,0 +1,66 @@
+# Wuxia for WordPress behind Nginx Proxy Manager: Path D of the deployment guide,
+# https://wuxia-kh.github.io/wuxia-press-published-/deploy.html#path-d
+#
+# Replace A_STRONG_DB_PASSWORD and A_STRONG_ROOT_PASSWORD (the guide does it
+# with one command), then: docker compose up -d
+
+services:
+  # Nginx Proxy Manager: the only thing the internet reaches. HTTPS
+  # certificates, and the admin panel on port 81.
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      # The admin panel: only on this server. Reach it through an SSH tunnel
+      # (see the guide); never open it to the internet.
+      - "127.0.0.1:81:81"
+    volumes:
+      - ./npm/data:/data
+      - ./npm/letsencrypt:/etc/letsencrypt
+
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: wuxia
+      MARIADB_USER: wuxia
+      MARIADB_PASSWORD: A_STRONG_DB_PASSWORD
+      MARIADB_ROOT_PASSWORD: A_STRONG_ROOT_PASSWORD
+    volumes:
+      - db:/var/lib/mysql
+
+  # WordPress as PHP-FPM: no web server of its own.
+  wordpress:
+    image: wordpress:php8.3-fpm
+    restart: unless-stopped
+    depends_on: [db]
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: wuxia
+      WORDPRESS_DB_USER: wuxia
+      WORDPRESS_DB_PASSWORD: A_STRONG_DB_PASSWORD
+      # Nginx Proxy Manager ends HTTPS; tell WordPress the visitor used it.
+      WORDPRESS_CONFIG_EXTRA: |
+        if ( ( $$_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '' ) === 'https' ) { $$_SERVER['HTTPS'] = 'on'; }
+    volumes:
+      - wp:/var/www/html
+
+  # nginx with the Wuxia media rules, between the proxy and WordPress.
+  web:
+    image: nginx:stable
+    restart: unless-stopped
+    depends_on: [wordpress]
+    volumes:
+      - wp:/var/www/html:ro
+      - ./nginx/site.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/wuxia-media-http.conf:/etc/nginx/conf.d/wuxia-media-http.conf:ro
+      - ./nginx/cloudflare.conf:/etc/nginx/conf.d/cloudflare.conf:ro
+      - ./nginx/wuxia-media-server.conf:/etc/nginx/snippets/wuxia-media-server.conf:ro
+      - media_cache:/var/cache/nginx/wuxia
+
+volumes:
+  db:
+  wp:
+  media_cache:

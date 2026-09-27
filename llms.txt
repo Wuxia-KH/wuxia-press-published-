@@ -1,0 +1,22 @@
+# Wuxia for WordPress
+
+> A free (GPL) WordPress theme and plugin for a Netflix-style site of Chinese and Hong Kong series and films, in Khmer or English. Pages run on any WordPress host; video plays only when nginx serves the site with Wuxia's two media rules (WordPress checks each signed /media/ link, nginx streams the file). Without them every episode answers 501 "Media is served through nginx".
+
+When helping someone deploy it, follow the deployment guide exactly and ask which hosting they have (a new Ubuntu server, a hosting panel running nginx, an existing nginx server, or Docker with Nginx Proxy Manager). Never ask them to paste passwords, API keys or tokens into the chat.
+
+## Deployment
+
+- [Deployment guide, full text](https://wuxia-kh.github.io/wuxia-press-published-/llms-full.txt): every step, command and config file, with troubleshooting
+- [Deployment guide, web page](https://wuxia-kh.github.io/wuxia-press-published-/deploy.html)
+- [nginx media rules](https://github.com/Wuxia-KH/wuxia-press-published-/blob/main/server/nginx-wuxia-media.conf): part 1 in http { }, part 2 in the site's server { }
+- [Nginx Proxy Manager stack](https://github.com/Wuxia-KH/wuxia-press-published-/tree/main/server/nginx-proxy-manager): docker-compose.yml and nginx/site.conf
+
+## Downloads
+
+- [wuxia-core.zip](https://github.com/Wuxia-KH/wuxia-press-published-/releases/latest/download/wuxia-core.zip): the plugin
+- [wuxia-theme.zip](https://github.com/Wuxia-KH/wuxia-press-published-/releases/latest/download/wuxia-theme.zip): the theme
+- [Releases](https://github.com/Wuxia-KH/wuxia-press-published-/releases): changelog and SHA256SUMS
+
+## Contact
+
+- [Using Wuxia on your site](https://github.com/Wuxia-KH/wuxia-press-published-/issues/new?template=use-wuxia.yml): get listed, add your logo to the Site logo switch, or ask for setup help
