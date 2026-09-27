@@ -137,7 +137,7 @@
     <section class="section" id="install">
       <div class="wrap">
         <h2>Install in five steps</h2>
-        <p class="intro">No Docker, no command line. Any host that runs WordPress runs Wuxia.</p>
+        <p class="intro">No Docker needed. Pages run on any WordPress host; video plays when nginx serves the site, with the <a href="#playback">two media rules</a> added.</p>
         <ol class="steps">
           <li><b>Install WordPress as usual</b><p>With your host’s one-click installer, or from <a href="https://wordpress.org/download/">wordpress.org/download</a>.</p></li>
           <li><b>Add the plugin</b><p><span class="path">Plugins → Add New Plugin → Upload Plugin</span>, choose <code>wuxia-core.zip</code>, then <strong>Activate</strong>.</p></li>
@@ -149,12 +149,27 @@
       </div>
     </section>
 
+    <section class="section" id="playback">
+      <div class="wrap">
+        <h2>Let video play: two nginx rules</h2>
+        <p class="intro">WordPress checks each signed <code>/media/</code> link and names the file; nginx fetches it from your storage and streams it. Viewers never see where your videos live, and PHP never carries video.</p>
+        <ol class="steps">
+          <li><b>Copy the rules</b><p>Download <a href="https://github.com/Wuxia-KH/wuxia-press-published-/blob/main/server/nginx-wuxia-media.conf"><code>nginx-wuxia-media.conf</code></a>. Part 1 goes inside <code>http { }</code>, part 2 inside your site’s <code>server { }</code>.</p></li>
+          <li><b>Point it at PHP</b><p>Change the lines marked <code>CHANGE</code>: the same <code>fastcgi_pass</code> as your site’s PHP block (for example <code>unix:/run/php/php8.3-fpm.sock</code>).</p></li>
+          <li><b>Make the cache folder</b><p><code>sudo mkdir -p /var/cache/nginx/wuxia &amp;&amp; sudo chown -R www-data /var/cache/nginx/wuxia</code></p></li>
+          <li><b>Reload nginx</b><p><code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>, then play an episode: its <code>.m3u8</code> and <code>.ts</code> files answer <code>200</code>.</p></li>
+        </ol>
+        <p class="note">Without these rules the site still works, but every episode answers <code>501 Media is served through nginx</code>.</p>
+      </div>
+    </section>
+
     <section class="section">
       <div class="wrap">
         <h2>Requirements</h2>
         <table class="reqs">
           <tr><th scope="row">WordPress</th><td>6.5 or newer (tested with 7.1)</td></tr>
           <tr><th scope="row">PHP</th><td>8.1 or newer</td></tr>
+          <tr><th scope="row">Web server</th><td><strong>nginx</strong> in front of WordPress, with Wuxia’s <a href="#playback">media rules</a>, for video to play. Apache and LiteSpeed show the site but can’t play episodes.</td></tr>
           <tr><th scope="row">Permalinks</th><td>“Post name” (or any readable structure)</td></tr>
           <tr><th scope="row">Your videos</th><td>HLS streams (<code>master.m3u8</code>) on storage you own, such as Cloudflare R2, S3, Google Drive or Telegram. iVault can convert and upload them for you.</td></tr>
           <tr><th scope="row">Optional</th><td>A Redis object cache speeds up large catalogues; <code>WUXIA_MEDIA_KEY</code> and <code>WUXIA_SMTP_*</code> in <code>wp-config.php</code> for a dedicated media key and outgoing mail.</td></tr>
@@ -180,7 +195,11 @@
           </details>
           <details>
             <summary>Does it work on shared hosting?</summary>
-            <div class="a"><p>Yes. It was tested on a fresh, standard WordPress 7.1 with no extra configuration: install, import and every page in Khmer and English.</p></div>
+            <div class="a"><p>The site does: install, import and every page in Khmer and English work on a standard WordPress 7.1 with no extra configuration. Video playback needs nginx with the <a href="#playback">media rules</a>, which most shared hosting (Apache or LiteSpeed) can’t add. Use a VPS, or a panel that runs nginx and accepts custom configuration.</p></div>
+          </details>
+          <details>
+            <summary>Episodes show “501 Media is served through nginx”</summary>
+            <div class="a"><p>The server has no media rules, so WordPress refuses to answer rather than reveal your storage address. Add <a href="#playback">the nginx rules</a> and reload nginx. A <code>403</code> “link has expired” just means the page is more than six hours old: reload it.</p></div>
           </details>
           <details>
             <summary>Can I show the site in English only?</summary>
