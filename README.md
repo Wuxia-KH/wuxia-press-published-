@@ -74,6 +74,12 @@ Open the browser's Network tab, play the episode, and look at the `master.m3u8` 
 
 This repo holds the website (GitHub Pages, served from `main`) and the release downloads. The theme and plugin are developed elsewhere and published here as zips with each release.
 
+## Trusted by
+
+<a href="https://dramasabay.com/"><img src="assets/img/sites/dramasabay.svg" alt="DramaSabay" height="32"></a>
+
+Running a site on Wuxia? [Get in touch on GitHub](https://github.com/Wuxia-KH/wuxia-press-published-/issues/new?template=use-wuxia.yml) to be listed here, to have your logo added to **Drama Manager → Settings → Site logo**, or for help with setup.
+
 ## License
 
 The theme and plugin are free software under the GNU General Public License, version 2 or later (see [LICENSE](LICENSE)). Bundled: hls.js (Apache-2.0) and the Kantumruy Pro font (SIL Open Font License 1.1).

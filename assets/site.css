@@ -230,6 +230,19 @@ footer a:hover { color: var(--text); }
   .intro-play .brand-intro { animation-delay: 500ms; }
 }
 
+/* ---------- trusted by: the sites running Wuxia ----------
+   A quiet band under the hero: the label, the logos at one height, and how to
+   join. Logos show in full colour; they are the proof. */
+.trusted { padding: 36px 0 44px; border-top: 1px solid var(--line); text-align: center; }
+.trusted-label { margin: 0 0 18px; color: var(--muted); font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.trusted-sites { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 24px 56px; margin: 0 0 20px; padding: 0; list-style: none; }
+.trusted-sites a { display: block; padding: 8px; border-radius: 8px; transition: opacity 150ms, transform 150ms var(--ease-out); }
+.trusted-sites a:hover { transform: translateY(-2px); }
+.trusted-sites a:focus-visible { outline: 2px solid var(--red); outline-offset: 4px; }
+.trusted-sites img { height: 34px; width: auto; }
+.trusted-cta { margin: 0 auto; max-width: 56ch; color: var(--muted); font-size: 15px; }
+.trusted-cta a { color: var(--text); }
+
 /* ---------- deploy.html: the deployment guide ----------
    A long page read top to bottom with a terminal open beside it: a table of
    contents that stays in view on wide screens, commands in copyable blocks,

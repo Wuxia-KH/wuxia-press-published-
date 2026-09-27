@@ -1,0 +1,36 @@
+name: Using Wuxia on your site
+description: Tell us about your site, get it listed under "Trusted by", or ask for your logo in the Site logo switch.
+title: "Using Wuxia: "
+labels: ["site"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for choosing Wuxia. Tell us about your site and what you need; we reply here.
+  - type: input
+    id: name
+    attributes:
+      label: Site name
+      placeholder: DramaSabay
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Site address
+      placeholder: https://example.com
+    validations:
+      required: true
+  - type: checkboxes
+    id: wants
+    attributes:
+      label: What would you like?
+      options:
+        - label: List my site under "Trusted by" on the Wuxia website
+        - label: Add my logo to Drama Manager → Settings → Site logo
+        - label: Help with setup or video playback
+  - type: textarea
+    id: details
+    attributes:
+      label: Anything else
+      description: For a logo, attach it here (SVG or a large PNG). For setup help, say what the browser's Network tab shows for master.m3u8.

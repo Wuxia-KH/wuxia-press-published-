@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Deployment guide
+    url: https://wuxia-kh.github.io/wuxia-press-published-/deploy.html
+    about: Setting up a server so episodes play, with troubleshooting.
