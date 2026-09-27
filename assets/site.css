@@ -186,3 +186,46 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: 
 footer nav { display: flex; flex-wrap: wrap; gap: 20px; }
 footer a { text-decoration: none; }
 footer a:hover { color: var(--text); }
+
+/* ---------- logo intro: the theme's BrandIntro, by CSS alone ----------
+   Strokes draw on in order (170 ms apart, 360 ms each) while the mark
+   settles from 0.94; a red glow blooms at 600 ms; the wordmark rises at
+   1000 ms; the layer fades at 1600 ms. A click or key skips it. */
+.brand-intro { display: none; }
+.intro-play .brand-intro {
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center; background: #000; cursor: pointer;
+  animation: intro-out 260ms cubic-bezier(0.2, 0, 0, 1) 1600ms forwards;
+}
+.intro-play.intro-skip .brand-intro { animation: intro-out 200ms cubic-bezier(0.2, 0, 0, 1) forwards; }
+@keyframes intro-out { to { opacity: 0; visibility: hidden; } }
+.bi-stage { position: relative; display: flex; flex-direction: column; align-items: center; }
+.bi-mark { height: 152px; width: auto; transform: scale(0.94); animation: bi-settle 1000ms var(--ease-out) forwards; }
+.bi-mark .s { opacity: 0; animation: 360ms var(--ease-out) forwards; }
+.bi-mark .s1 { clip-path: inset(0 0 100% 0); animation-name: bi-down; animation-delay: 0ms; }
+.bi-mark .s2 { clip-path: inset(100% 0 0 0); animation-name: bi-up; animation-delay: 170ms; }
+.bi-mark .s3 { clip-path: inset(0 0 100% 0); animation-name: bi-down; animation-delay: 340ms; }
+.bi-mark .s4 { clip-path: inset(100% 0 0 0); animation-name: bi-up; animation-delay: 510ms; }
+.bi-glow {
+  position: absolute; inset: -40% -60%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(229, 9, 20, 0.55), rgba(229, 9, 20, 0.16) 60%, transparent);
+  opacity: 0; animation: bi-bloom 760ms var(--ease-out) 600ms forwards;
+}
+.bi-word {
+  position: relative; margin-top: 18px; padding-left: 0.28em;
+  color: var(--red); font-size: 24px; font-weight: 700; letter-spacing: 0.28em;
+  opacity: 0; transform: translateY(14px);
+  animation: bi-rise 400ms var(--ease-out) 1000ms forwards;
+}
+@keyframes bi-down { from { opacity: 1; clip-path: inset(0 0 100% 0); } to { opacity: 1; clip-path: inset(0); } }
+@keyframes bi-up { from { opacity: 1; clip-path: inset(100% 0 0 0); } to { opacity: 1; clip-path: inset(0); } }
+@keyframes bi-settle { to { transform: scale(1); } }
+@keyframes bi-bloom { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: 0.35; } }
+@keyframes bi-rise { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  /* The intro becomes the finished mark, held half a second. */
+  .bi-mark, .bi-word { animation: none; opacity: 1; transform: none; }
+  .bi-mark .s { animation: none; opacity: 1; clip-path: none; }
+  .bi-glow { display: none; }
+  .intro-play .brand-intro { animation-delay: 500ms; }
+}
