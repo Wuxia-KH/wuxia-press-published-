@@ -132,7 +132,7 @@ server {
 	client_max_body_size 32m;
 	server_tokens off;
 
-	# Video (Wuxia): must stay above the other locations' meaning; ^~ wins.
+	# Video (Wuxia). Its ^~ locations take priority over the rules below.
 	include snippets/wuxia-media-server.conf;
 
 	location ~ /\. { deny all; }

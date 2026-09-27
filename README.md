@@ -47,7 +47,7 @@ Requires WordPress 6.5+, PHP 8.1+ and, for video playback, **nginx** in front of
 
 ## Video playback needs nginx
 
-**Deploying?** Follow [DEPLOY.md](DEPLOY.md): a step-by-step guide for a new Ubuntu server, hosting panels and existing nginx servers, with Cloudflare, checks and troubleshooting.
+**Deploying?** Follow the [deployment guide](https://wuxia-kh.github.io/wuxia-press-published-/deploy.html) (also as [DEPLOY.md](DEPLOY.md)): a step-by-step guide for a new Ubuntu server, hosting panels and existing nginx servers, with Cloudflare, checks and troubleshooting.
 
 Every page works on any WordPress host, but episodes only play when nginx serves the site with Wuxia's two media rules. WordPress checks each signed `/media/` link and names the file; nginx fetches it from your storage and streams it, so the storage address and credentials never reach viewers, and PHP never carries video.
 

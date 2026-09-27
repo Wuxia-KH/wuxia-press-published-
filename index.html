@@ -18,7 +18,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <script src="assets/intro.js?v=14f276ac"></script>
   <link rel="preload" href="assets/fonts/KantumruyPro-Variable.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="assets/site.css?v=d0bdaf48">
+  <link rel="stylesheet" href="assets/site.css?v=a9d75eda">
 </head>
 <body>
   <div class="brand-intro" aria-hidden="true">
@@ -34,6 +34,7 @@
       <nav class="menu" aria-label="Page">
         <a class="wide" href="#features">Features</a>
         <a href="#install">Install</a>
+        <a href="deploy.html">Deploy</a>
         <a class="wide" href="#faq">FAQ</a>
         <a href="https://github.com/Wuxia-KH/wuxia-press-published-/releases">Releases</a>
       </nav>
@@ -159,7 +160,7 @@
           <li><b>Make the cache folder</b><p><code>sudo mkdir -p /var/cache/nginx/wuxia &amp;&amp; sudo chown -R www-data /var/cache/nginx/wuxia</code></p></li>
           <li><b>Reload nginx</b><p><code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code>, then play an episode: its <code>.m3u8</code> and <code>.ts</code> files answer <code>200</code>.</p></li>
         </ol>
-        <p class="note">Without these rules the site still works, but every episode answers <code>501 Media is served through nginx</code>. Setting up a server? The <a href="https://github.com/Wuxia-KH/wuxia-press-published-/blob/main/DEPLOY.md">deployment guide</a> walks through a new Ubuntu server, hosting panels and Cloudflare step by step.</p>
+        <p class="note">Without these rules the site still works, but every episode answers <code>501 Media is served through nginx</code>. Setting up a server? The <a href="deploy.html">deployment guide</a> walks through a new Ubuntu server, hosting panels and Cloudflare step by step.</p>
       </div>
     </section>
 
